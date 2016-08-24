@@ -656,10 +656,20 @@ function resample(x::AbstractVector, rate::Real, h::Vector)
     # Calculate the number of 0's required so that w
     outLen      = ceil(Int, length(x)*rate)
     reqInlen    = inputlength(self, outLen)
-    reqZerosLen = reqInlen - length(x)
+    reqZerosLen = reqInlen - length(x) 
     xPadded     = [x; zeros(eltype(x), reqZerosLen)]
-
-    filt(self, xPadded)
+    out = filt(self, xPadded)
+    
+    # This is a super hacky fix because len(out) != outLen for rates > 2.0
+    # Ideally should change this to either at least interpolate the extra values
+    lendiff = outLen - length(out)
+    if lendiff != 0 
+        toadd = resample(out[end-lendiff:end], 2.0)
+        temp = [out[1:end-lendiff-2]; toadd]
+        return temp
+    else
+       return out
+    end
 end
 
 function resample(ndx::AbstractArray, rate::Real, h::Vector, dim::Int)
@@ -669,7 +679,7 @@ function resample(ndx::AbstractArray, rate::Real, h::Vector, dim::Int)
     
     # Create output array
     szout = collect(size(ndx))
-    szout[dim] = floor(Int, szout[dim] * rate)
+    szout[dim] = ceil(Int, szout[dim] * rate)
     out = zeros(szout...)
     
     # Resample over chosen dim
@@ -683,7 +693,7 @@ end
 
 function resample(ndx::AbstractArray, rate::Real, dim::Int)
     h = resample_filter(rate)
-    resample(x, rate, h, dim)
+    resample(ndx, rate, h, dim)
 end
 
 function resample(x::AbstractVector, rate::Real)
