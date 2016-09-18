@@ -656,10 +656,44 @@ function resample(x::AbstractVector, rate::Real, h::Vector)
     # Calculate the number of 0's required so that w
     outLen      = ceil(Int, length(x)*rate)
     reqInlen    = inputlength(self, outLen)
-    reqZerosLen = reqInlen - length(x)
+    reqZerosLen = reqInlen - length(x) 
     xPadded     = [x; zeros(eltype(x), reqZerosLen)]
+    out = filt(self, xPadded)
+    
+    # This is a super hacky fix because len(out) != outLen for rates > 2.0
+    # Ideally should change this to either at least interpolate the extra values
+    lendiff = outLen - length(out)
+    if lendiff != 0 
+        toadd = resample(out[end-lendiff:end], 2.0)
+        temp = [out[1:end-lendiff-2]; toadd]
+        return temp
+    else
+       return out
+    end
+end
 
-    filt(self, xPadded)
+function resample(ndx::AbstractArray, rate::Real, h::Vector, dim::Int)
+    # Get range for all other dims
+    Rpre = CartesianRange(size(ndx)[1:dim-1])
+    Rpost = CartesianRange(size(ndx)[dim+1:end])
+    
+    # Create output array
+    szout = collect(size(ndx))
+    szout[dim] = ceil(Int, szout[dim] * rate)
+    out = zeros(szout...)
+    
+    # Resample over chosen dim
+    for Ipost in Rpost
+       for Ipre in Rpre
+            out[Ipre, :, Ipost] = resample(vec(ndx[Ipre, :, Ipost]), rate, h)
+       end
+    end
+    out
+end
+
+function resample(ndx::AbstractArray, rate::Real, dim::Int)
+    h = resample_filter(rate)
+    resample(ndx, rate, h, dim)
 end
 
 function resample(x::AbstractVector, rate::Real)
